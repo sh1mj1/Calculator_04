@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/greenPressed">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/green" />
+            <corners android:radius="100dp" />
+            <stroke
+                android:width="1dp"
+                android:color="@color/greenPressed" />
+
+        </shape>
+    </item>
+
+</ripple>
+
+    <!--ripple 에 정의된 color는 눌렀을 때 정의되는 색이기 때무에-->
+    <!--background를 따로 주어야 함. -->
