@@ -5,9 +5,15 @@ import android.os.Bundle
 import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
+import android.view.LayoutInflater
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.view.isVisible
+import androidx.room.Room
+import com.example.calculator_04.model.History
+import org.w3c.dom.Text
 
 class MainActivity : AppCompatActivity() {
 
@@ -21,10 +27,25 @@ class MainActivity : AppCompatActivity() {
     private var isOperator = false
     private var hasOperator = false
 
+    private val historyLayout: View by lazy {
+        findViewById(R.id.history_Cl)
+    }
+    private val historyLinearLayout: LinearLayout by lazy {
+        findViewById(R.id.history_Ll)
+    }
 
+    lateinit var db: AppDatabase
+
+    // Mark -LifeCycle/////////////////////////////////////////
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        db = Room.databaseBuilder(
+            applicationContext,
+            AppDatabase::class.java,
+            "historyDB"
+        ).build()
     }
 
     // Mark -Help/////////////////////////////////////////
@@ -114,24 +135,73 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun historyBtnClicked(v: View) {
+        // DB에서 히스토리의 값을 가져와서 historyLinearLayout에 그 값을 넣고, historyLayout VISIBLE
+        historyLayout.isVisible = true
+        historyLinearLayout.removeAllViews()
+
+        // TODO: DB에서 모든 기록 가져오기
+        // TODO: 뷰에 모든 기록 할당하기
+        // 저장할 떄 최신의 데이터가 아래에 보여짐. 계산기 히스토리에서는 최신 것이 위에 보여져야 되므로 뒤집기.
+        Thread(Runnable {
+            db.historyDao().getAll().reversed().forEach {
+                // 현재 이 스레드는 메인 스레드가 아니다. 메인 스레드로 전환을 해주어야 함.
+                runOnUiThread {
+                    val historyView =
+                        LayoutInflater.from(this).inflate(R.layout.history_row, null, false)
+                    historyView.findViewById<TextView>(R.id.expression_Tv).text = it.expression
+                    historyView.findViewById<TextView>(R.id.result_Tv).text = " = ${it.result}"
+
+
+                    historyLinearLayout.addView(historyView)
+                }
+            }
+        }).start()
+
+
+
 
     }
+
+    fun historyClearBtnClicked(v: View) {
+        // TODO: 디비에서 모든 기록 삭제
+        // TODO: 뷰에서 모든 기록 삭제
+        historyLinearLayout.removeAllViews()
+
+        Thread(kotlinx.coroutines.Runnable {
+            db.historyDao().deleteAll()
+        }).start()
+
+    }
+
+    fun closeHistoryBtnClicked(v: View) {
+        historyLayout.isVisible = false
+    }
+
 
     fun resultBtnClicked(v: View) {
         // 연산을 했던 것과 똑같이 해주면 댐.
         val expressionTexts = expressionTV.text.split(" ")
-        if (expressionTV.text.isEmpty() || expressionTexts.size == 1) { return }
+        if (expressionTV.text.isEmpty() || expressionTexts.size == 1) {
+            return
+        }
         if (expressionTexts.size != 3 && hasOperator) {
             Toast.makeText(this, "아직 완성되지 않은 수식입니다.", Toast.LENGTH_SHORT).show()
             return
         }
-        if (expressionTexts[0].isNumber().not() || expressionTexts[2].isNumber().not()) { // 사실 이 오류가 발생한다는 것은 이전에 코드가 잘못되었다는 것이지만 이중 오류 제어
+        if (expressionTexts[0].isNumber().not() || expressionTexts[2].isNumber()
+                .not()
+        ) { // 사실 이 오류가 발생한다는 것은 이전에 코드가 잘못되었다는 것이지만 이중 오류 제어
             Toast.makeText(this, "오류가 발생했습니다.", Toast.LENGTH_SHORT).show()
             return
         }
 
         val expressionText = expressionTV.text.toString()
         val resultText = calculateExpression()
+
+        // expressionText와 resultText 는 아래에서 바뀌니까 위에서 미리 변수로 저장해 둠.
+        Thread(kotlinx.coroutines.Runnable {
+            db.historyDao().insertHistory(History(null, expressionText, resultText))
+        }).start()
 
         resultTV.text = ""
         expressionTV.text = resultText
@@ -143,7 +213,7 @@ class MainActivity : AppCompatActivity() {
     private fun calculateExpression(): String {
         val expressionTexts = expressionTV.text.split(" ")
 
-        if(hasOperator.not() || expressionTexts.size != 3) {
+        if (hasOperator.not() || expressionTexts.size != 3) {
             return ""
         } else if (expressionTexts[0].isNumber().not() || expressionTexts[2].isNumber().not()) {
             return ""
@@ -152,7 +222,7 @@ class MainActivity : AppCompatActivity() {
         val exp2 = expressionTexts[2].toBigInteger()
         val op = expressionTexts[1]
 
-        return when(op){
+        return when (op) {
             "+" -> (exp1 + exp2).toString()
             "-" -> (exp1 - exp2).toString()
             "×" -> (exp1 * exp2).toString()
@@ -161,7 +231,6 @@ class MainActivity : AppCompatActivity() {
         }
 
     }
-
 
 
 }
@@ -173,7 +242,7 @@ fun String.isNumber(): Boolean {
     return try {
         this.toBigInteger()
         true
-    } catch (e: NumberFormatException){
+    } catch (e: NumberFormatException) {
         false
     }
 }
